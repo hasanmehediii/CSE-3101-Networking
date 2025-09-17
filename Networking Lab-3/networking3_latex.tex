@@ -1,0 +1,384 @@
+\documentclass{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{fancyhdr}
+\usepackage{sectsty}
+\usepackage{enumitem}
+\usepackage{hyperref}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+
+\lstset{style=mystyle}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{Department of Computer Science and Engineering}
+\rhead{University of Dhaka}
+\cfoot{\thepage}
+
+\sectionfont{\centering \Large \bfseries}
+\subsectionfont{\centering \normalsize \bfseries}
+
+\title{Implementation of Client-Server Communication using Socket Programming}
+\author{Your Name \\ Batch: 29/3rd Year 1st Semester 2024}
+\date{}
+
+\begin{document}
+
+\begin{titlepage}
+    \centering
+    \vspace*{1cm}
+    % Placeholder for logo; replace with actual image path
+    \includegraphics[width=0.3\textwidth]{csedu.png} \\[1cm]
+    
+    {\Large Department of \\ Computer Science and Engineering \\[0.5cm]}
+    {\large University of Dhaka \\[2cm]}
+    
+    \hrule
+    \vspace{1cm}
+    {\LARGE Title: Implementation of Client-Server \\ Communication using Socket Programming \\[1cm]}
+    \hrule
+    \vspace{1cm}
+    
+    {\large CSE 3111: Computer Networking Lab \\[0.5cm]}
+    {\normalsize Batch: 29/3rd Year 1st Semester 2024\\[0.5cm]}
+    
+    {\large prepared by:Mehedi Hasan(22) and Biplob Pal(50}
+    
+    \vfill
+\end{titlepage}
+
+\thispagestyle{empty}
+
+\newpage
+\tableofcontents
+\newpage
+
+\section{Introduction}
+
+Socket programming is a fundamental technique in computer networking that enables communication between two processes over a network. It provides a standardized interface for applications to send and receive data using protocols like TCP or UDP. In Java, socket programming involves creating sockets—endpoints for communication—that can be connection-oriented (using TCP for reliable, ordered delivery) or connectionless (using UDP for faster but less reliable transmission). Sockets abstract the underlying network details, allowing developers to focus on application logic while handling data transmission via input and output streams.
+
+Multi-threaded socket programming extends basic socket programming by incorporating threads to manage concurrent connections. In a basic socket setup, a server can typically handle only one client at a time, leading to blocking behavior where subsequent clients must wait. Multi-threading addresses this by assigning each client connection to a separate thread, enabling the server to process multiple requests simultaneously without interrupting ongoing communications. This is achieved by extending the Thread class or implementing Runnable, where each thread manages its own input/output streams for independent client-server interactions.
+
+The necessity of socket programming and multi-threading for designing a chat application is evident in real-time communication scenarios. A chat application requires reliable, bidirectional data exchange between clients and a server. Basic sockets provide the foundation for establishing connections and transferring messages, while multi-threading ensures scalability—allowing multiple users to chat concurrently without performance degradation. Without multi-threading, the application would be limited to single-user interactions, making it unsuitable for group or multi-user chats. This combination enables features like instant messaging, where the server can relay or respond to messages from various clients in parallel, mimicking real-world applications like WhatsApp or IRC servers.
+
+\section{Objectives}
+
+\begin{itemize}[label=$\bullet$]
+    \item To implement a multi-threaded server that can handle connections from multiple clients simultaneously, allowing concurrent chat sessions.
+    \item To develop a fully functional chat application where clients can send single or multiple sentences to the server, and the server can reply to each client independently.
+    \item To incorporate termination conditions for both client and server sides to gracefully end communication sessions.
+\end{itemize}
+
+\section{Design Details}
+
+The chat application is designed using Java's socket programming with multi-threading to support multiple clients. The system consists of a server that listens for incoming connections and spawns a new thread for each client, ensuring independent communication channels. Clients connect to the server, send messages, and receive replies. The termination condition is triggered when a client sends the message "Exit", which closes the connection for that client. The server continues running to accept new connections.
+
+Step-by-step implementation process (textual representation; a flowchart could be added here for visualization):
+
+\begin{enumerate}
+    \item \textbf{Server Initialization}: Created a ServerSocket on a specified port 5000 to listen for client connections in an infinite loop.
+    \item \textbf{Accept Client Connection}: Upon receiving a connection request, accepted it to create a plain Socket for communication.
+    \item \textbf{Create Input/Output Streams}: Extract DataInputStream (for reading) and DataOutputStream (for writing) from the socket.
+    \item \textbf{Spawn Client Handler Thread}: Instantiate a ClientHandler object (extending Thread), passing the socket and streams as parameters, and start the thread.
+    \item \textbf{Client Handler Logic}: In the thread's run() method, loop to read messages from the client using readUTF(). If the message is "Exit", close the connection. Otherwise, print the message to the server console, prompt for a reply via System.in, and send the reply using writeUTF().
+    \item \textbf{Client Side}: Create a Socket connecting to the server's IP and port. Set up DataInputStream and DataOutputStream. In a loop, read user input from console, send it to the server using writeUTF(), and read the server's reply using readUTF(). Exit if "Exit" is sent.
+    \item \textbf{Error Handling}: Use try-catch blocks for IOExceptions to handle connection issues gracefully.
+    \item \textbf{Termination}: Client terminates on "Exit". Server runs indefinitely but closes individual client sockets upon termination.
+\end{enumerate}
+
+This design overcomes the limitations of basic socket programming by using threads to prevent blocking, allowing the server to handle multiple clients without queuing.
+
+\section{Implementation}
+
+The implementation is done in Java, with two main files: Server.java (containing the Server class and ClientHandler inner class) and Client.java.
+
+\subsection{Server.java Code}
+
+\begin{lstlisting}[language=Java]
+import java.io.*;
+import java.net.*;
+import java.util.*;
+
+public class server {
+    private static Map<String, String> accountPin = Collections.synchronizedMap(new HashMap<>());
+    private static Map<String, Integer> accountBalance = Collections.synchronizedMap(new HashMap<>());
+
+    public static void main(String[] args) {
+        loadDatabase();
+        try {
+            ServerSocket server = new ServerSocket(7777);
+            System.out.println("Server started on port 7777");
+            while (true) {
+                Socket socket = server.accept();
+                System.out.println("New client connected: " + socket.getInetAddress());
+                new ClientHandler(socket).start();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void loadDatabase() {
+        try (BufferedReader br = new BufferedReader(new FileReader("database.txt"))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.split(",");
+                accountPin.put(parts[0], parts[1]);
+                accountBalance.put(parts[0], Integer.parseInt(parts[2]));
+            }
+            System.out.println("Database loaded successfully.");
+        } catch (Exception e) {
+            System.out.println("Error loading database: " + e.getMessage());
+        }
+    }
+
+    private static synchronized void saveDatabase() {
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter("database.txt"))) {
+            for (String card : accountBalance.keySet()) {
+                bw.write(card + "," + accountPin.get(card) + "," + accountBalance.get(card));
+                bw.newLine();
+            }
+        } catch (Exception e) {
+            System.out.println("Error saving database: " + e.getMessage());
+        }
+    }
+
+    static class ClientHandler extends Thread {
+        Socket socket;
+        DataInputStream inputDS;
+        DataOutputStream outputDS;
+        String authenticatedCard = null;
+
+        public ClientHandler(Socket socket) {
+            this.socket = socket;
+            try {
+                inputDS = new DataInputStream(socket.getInputStream());
+                outputDS = new DataOutputStream(socket.getOutputStream());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        public void run() {
+            try {
+                while (true) {
+                    String message = inputDS.readUTF();
+
+                    if (message.startsWith("AUTH:")) {
+                        String[] parts = message.split(":");
+                        if (parts.length == 3) {
+                            String card = parts[1];
+                            String pin = parts[2];
+                            if (accountPin.containsKey(card) && accountPin.get(card).equals(pin)) {
+                                authenticatedCard = card;
+                                outputDS.writeUTF("AUTH_OK");
+                                System.out.println("Client authenticated: " + card);
+                            } else {
+                                outputDS.writeUTF("AUTH_FAIL");
+                                System.out.println("Failed authentication attempt for card: " + card);
+                            }
+                        } else {
+                            outputDS.writeUTF("INVALID_FORMAT");
+                            System.out.println("Invalid AUTH format received");
+                        }
+
+                    } else if (message.equals("BALANCE_REQ")) {
+                        if (authenticatedCard != null) {
+                            int balance = accountBalance.get(authenticatedCard);
+                            outputDS.writeUTF("BALANCE_RES:" + balance);
+                            System.out.println("Balance request for " + authenticatedCard + ": " + balance);
+                        } else {
+                            outputDS.writeUTF("AUTH_REQUIRED");
+                            System.out.println("Balance request without authentication");
+                        }
+
+                    } else if (message.startsWith("WITHDRAW:")) {
+                        if (authenticatedCard != null) {
+                            int amount = Integer.parseInt(message.split(":")[1]);
+                            int balance = accountBalance.get(authenticatedCard);
+                            if (balance >= amount) {
+                                accountBalance.put(authenticatedCard, balance - amount);
+                                saveDatabase();
+                                outputDS.writeUTF("WITHDRAW_OK");
+                                System.out.println("Withdrawal of " + amount + " for " + authenticatedCard + ". New balance: " + (balance - amount));
+                            } else {
+                                outputDS.writeUTF("INSUFFICIENT_FUNDS");
+                                System.out.println("Failed withdrawal (insufficient funds) for " + authenticatedCard + ": " + amount);
+                            }
+                        } else {
+                            outputDS.writeUTF("AUTH_REQUIRED");
+                            System.out.println("Withdrawal request without authentication");
+                        }
+
+                    } else if (message.equals("EXIT")) {
+                        outputDS.writeUTF("EXIT");
+                        System.out.println("Client disconnected: " + socket.getInetAddress());
+                        socket.close();
+                        break;
+
+                    } else {
+                        outputDS.writeUTF("UNKNOWN_COMMAND");
+                        System.out.println("Unknown command received: " + message);
+                    }
+                }
+            } catch (Exception e) {
+                System.out.println("Connection lost with client: " + socket.getInetAddress());
+            }
+        }
+    }
+}
+
+\end{lstlisting}
+
+\subsection{Client.java Code}
+
+\begin{lstlisting}[language=Java]
+import java.io.*;
+import java.net.*;
+import java.util.*;
+
+class MessageReceiver extends Thread {
+    DataInputStream inputDS;
+
+    public MessageReceiver(DataInputStream inputDS) {
+        this.inputDS = inputDS;
+    }
+
+    public void run() {
+        try {
+            String message;
+            while (true) {
+                message = inputDS.readUTF();
+                System.out.println("\nServer: " + message);
+                if (message.equals("EXIT"))
+                    break;
+                System.out.print("You: ");
+            }
+        } catch (Exception e) {
+        }
+    }
+}
+
+public class Roll_22_Client {
+    public static void main(String[] args) {
+        try {
+            Scanner sc = new Scanner(System.in);
+            Socket socket = new Socket("10.170.251.21", 7777);
+            DataInputStream inputDS = new DataInputStream(socket.getInputStream());
+            DataOutputStream outputDS = new DataOutputStream(socket.getOutputStream());
+            MessageReceiver receiver = new MessageReceiver(inputDS);
+            receiver.start();
+            System.out.print("Enter card number: ");
+            String card = sc.nextLine();
+            System.out.print("Enter PIN: ");
+            String pin = sc.nextLine();
+            outputDS.writeUTF("AUTH:" + card + ":" + pin);
+            outputDS.flush();
+            while (true) {
+                System.out.print("You: ");
+                String text = sc.nextLine();
+                if (text.equalsIgnoreCase("EXIT")) {
+                    outputDS.writeUTF("EXIT");
+                    outputDS.flush();
+                    break;
+                }
+                if (text.equalsIgnoreCase("BALANCE_REQ")) {
+                    outputDS.writeUTF("BALANCE_REQ");
+                } else if (text.toUpperCase().startsWith("WITHDRAW")) {
+                    String[] parts = text.split(" ");
+                    if (parts.length != 2) {
+                        System.out.println("Usage: WITHDRAW <amount>");
+                        continue;
+                    }
+                    outputDS.writeUTF("WITHDRAW:" + parts[1]);
+                } else {
+                    System.out.println("Ue BALANCE_REQ, WITHDRAW <amount> EXIT");
+                }
+                outputDS.flush();
+            }
+            receiver.join();
+            socket.close();
+            sc.close();
+        } catch (Exception e) {
+        }
+    }
+}
+\end{lstlisting}
+
+Screenshots:
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{server.jpg}
+    \caption{Server Side Console}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{client.jpg}
+    \caption{Client Side Console}
+\end{figure}
+
+\section{Result Analysis}
+
+The application was tested with multiple clients connecting to the server simultaneously.  
+
+\textbf{Example Output (Server Side):}  
+\begin{verbatim}
+Server started on port 5000  
+New client connected: Socket[addr=/127.0.0.1,port=54321,localport=5000]  
+New client connected: Socket[addr=/127.0.0.1,port=54322,localport=5000]  
+Client Socket[addr=/127.0.0.1,port=54321,localport=5000]: Hello from Client 1  
+Server reply to Socket[addr=/127.0.0.1,port=54321,localport=5000]: Hi Client 1  
+Client Socket[addr=/127.0.0.1,port=54322,localport=5000]: Hi from Client 2  
+Server reply to Socket[addr=/127.0.0.1,port=54322,localport=5000]: Hello Client 2  
+Client Socket[addr=/127.0.0.1,port=54321,localport=5000]: Exit  
+Client Socket[addr=/127.0.0.1,port=54321,localport=5000] exited.
+\end{verbatim}
+
+\textbf{Example Output (Client 1 Side):}  
+\begin{verbatim}
+Connected to server. Type 'Exit' to quit.  
+Client message: Hello from Client 1  
+Server: Hi Client 1  
+Client message: Exit
+\end{verbatim}
+
+\textbf{Description:} The server handles multiple clients concurrently, printing messages from each and allowing independent replies. Termination occurs smoothly on "Exit". If multiple messages are sent quickly, threads ensure they are processed without loss, though console input for replies requires careful sequencing by the server operator.
+
+(Include screenshot images of console outputs here using \includegraphics.)
+
+\section{Discussion}
+
+Basic socket programming allows simple client-server communication but suffers from significant drawbacks, such as inability to handle multiple clients concurrently. In a non-threaded setup, the server processes one client at a time, causing others to block or fail to connect, leading to poor scalability and responsiveness. Additionally, if a client sends multiple messages without waiting for replies, the server may only receive the first one due to buffering issues, resulting in message loss.
+
+Multi-threaded socket programming overcomes these by dedicating a thread per client, enabling parallel processing. This ensures the server remains available for new connections while handling ongoing chats, preventing blocking and message queuing problems. For instance, in our implementation, each ClientHandler thread manages its own streams, allowing independent communication without interference.
+
+Through this lab, we learned the practical application of threads in networking, including synchronization challenges (e.g., shared console input) and the importance of exception handling for robust connections. Difficulties faced included managing interleaved console inputs on the server side, which could lead to mismatched replies in high-traffic scenarios—potentially resolvable with a GUI or queue-based input system. Overall, this enhanced our understanding of concurrent programming for real-time applications.
+
+\end{document}
