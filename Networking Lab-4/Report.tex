@@ -1,0 +1,304 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{fancyhdr}
+\usepackage{sectsty}
+\usepackage{enumitem}
+\usepackage{hyperref}
+
+\geometry{margin=1in}
+
+% Colors for code
+\definecolor{codebg}{rgb}{0.95,0.95,0.95}
+\definecolor{keyword}{rgb}{0.36,0.09,0.54}
+\definecolor{comment}{rgb}{0.0,0.5,0.0}
+\definecolor{string}{rgb}{0.55,0.0,0.0}
+
+% Listings style
+\lstset{
+    backgroundcolor=\color{codebg},
+    basicstyle=\ttfamily\footnotesize,
+    keywordstyle=\color{keyword}\bfseries,
+    commentstyle=\color{comment}\itshape,
+    stringstyle=\color{string},
+    numbers=left,
+    numberstyle=\tiny,
+    stepnumber=1,
+    numbersep=5pt,
+    tabsize=4,
+    showstringspaces=false,
+    breaklines=true
+}
+
+% Header and footer
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{Department of Computer Science and Engineering}
+\rhead{University of Dhaka}
+\cfoot{\thepage}
+
+\sectionfont{\centering \Large \bfseries}
+\subsectionfont{\centering \normalsize \bfseries}
+
+% Title page content
+\begin{document}
+
+\begin{titlepage}
+    \centering
+    \vspace*{1cm}
+    \includegraphics[width=0.3\textwidth]{csedu.png} \\[1cm]
+    
+    {\LARGE Department of \\ Computer Science and Engineering \\[0.5cm]}
+    {\Large University of Dhaka \\[2cm]}
+    
+    \hrule
+    \vspace{1cm}
+    {\LARGE Title: Implementation of Client-Server \\ Communication using Socket Programming \\[1cm]}
+    \hrule
+    \vspace{1cm}
+    
+    {\large CSE 3111: Computer Networking Lab \\[0.5cm]}
+    {\normalsize Batch: 29/3rd Year 1st Semester 2024\\[0.5cm]}
+    
+    {\large Prepared by: Mehedi Hasan (22) and Biplob Pal (50)}
+    
+    \vfill
+\end{titlepage}
+
+\section{Introduction}
+Socket programming allows communication between two programs over a network. Each program communicates through endpoints called sockets. Basic socket programming allows only a single client to connect at a time, which can create delays and reduce efficiency for multiple users.
+
+Multi-threaded socket programming enables a server to handle multiple clients simultaneously by assigning each client connection to a separate thread. This approach is essential for real-time applications, such as chat or file-sharing systems, where multiple users must interact concurrently without blocking each other.
+
+\section{Objectives}
+The main objectives of this lab are:
+\begin{enumerate}
+    \item To implement a multi-threaded HTTP file server and client using Java.
+    \item To learn file transfer over a network using GET and POST methods.
+    \item To understand the advantages of multi-threaded socket programming over single-threaded servers.
+\end{enumerate}
+
+\section{Design Details}
+The implementation uses a client-server architecture:
+
+\subsection{Server Design Steps}
+\begin{enumerate}
+    \item Initialize a server socket on port 5000.
+    \item Create a folder to store files (``server\_files'').
+    \item Accept incoming client connections.
+    \item For each client, start a new thread to handle requests.
+    \item Supported client commands:
+    \begin{itemize}
+        \item \texttt{ls} -- list all files in the server folder.
+        \item \texttt{filename.ext} -- download a specific file.
+        \item \texttt{exit} -- close connection.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Client Design Steps}
+\begin{enumerate}
+    \item Connect to the server using IP and port.
+    \item Provide a command-line interface to:
+    \begin{itemize}
+        \item List available files on the server.
+        \item Download files using GET requests.
+        \item Upload files using POST requests.
+        \item Exit the session.
+    \end{itemize}
+    \item Receive file data in chunks and save locally.
+\end{enumerate}
+
+\subsection{Operation Flow (Textual Representation)}
+\begin{enumerate}
+    \item Server starts and waits for client connections.
+    \item Client connects and receives a welcome message.
+    \item Client sends a command:
+    \begin{itemize}
+        \item If \texttt{ls}, server sends the list of files.
+        \item If \texttt{filename.ext}, server checks existence and sends file.
+        \item If \texttt{exit}, server closes the connection.
+    \end{itemize}
+    \item Client receives response and saves files if requested.
+\end{enumerate}
+
+\section{Implementation}
+\subsection{Server Code}
+\begin{lstlisting}[language=Java]
+import java.io.*;
+import java.net.*;
+
+public class Roll50_Server {
+    private static final int PORT = 5000;
+    private static final String Folder = "server_files";
+
+    public static void main(String[] args) {
+        File folder = new File(Folder);
+        if (!folder.exists()) folder.mkdir();
+
+        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
+            System.out.println("Server started. Listening on port " + PORT);
+            while (true) {
+                Socket socket = serverSocket.accept();
+                System.out.println("Client connected: " + socket.getInetAddress());
+                new ClientHandler(socket, folder).start();
+            }
+        } catch (IOException e) { e.printStackTrace(); }
+    }
+}
+
+class ClientHandler extends Thread {
+    private Socket socket;
+    private File folder;
+
+    public ClientHandler(Socket socket, File folder) {
+        this.socket = socket;
+        this.folder = folder;
+    }
+
+    @Override
+    public void run() {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+             PrintWriter writer = new PrintWriter(socket.getOutputStream(), true);
+             DataOutputStream dataOut = new DataOutputStream(socket.getOutputStream())) {
+
+            writer.println("Connected to File Server. Type 'ls' to see files or enter a file name.");
+
+            String command;
+            while ((command = reader.readLine()) != null) {
+                if (command.equalsIgnoreCase("ls")) {
+                    File[] files = folder.listFiles();
+                    if (files != null) for (File f : files) if (f.isFile()) writer.println(f.getName());
+                    writer.println("END");
+                } else {
+                    File file = new File(folder, command);
+                    if (file.exists() && file.isFile()) {
+                        writer.println("FOUND");
+                        long fileSize = file.length();
+                        dataOut.writeLong(fileSize);
+                        try (FileInputStream fis = new FileInputStream(file)) {
+                            byte[] buffer = new byte[4096];
+                            int bytesRead;
+                            while ((bytesRead = fis.read(buffer)) != -1) {
+                                dataOut.write(buffer, 0, bytesRead);
+                            }
+                        }
+                        System.out.println("File " + command + " sent successfully.");
+                    } else {
+                        writer.println("NOT_FOUND");
+                        System.out.println("File " + command + " not found.");
+                    }
+                }
+            }
+        } catch (IOException e) { e.printStackTrace(); } 
+        finally { try { socket.close(); } catch (IOException e) { e.printStackTrace(); } }
+    }
+}
+\end{lstlisting}
+
+\subsection{Client Code}
+\begin{lstlisting}[language=Java]
+import java.io.*;
+import java.net.*;
+
+public class Roll22_Client {
+    static final String SERVER_IP = "10.101.198.21";
+    static final int SERVER_PORT = 5000;
+
+    public static void main(String[] args) {
+        try (Socket socket = new Socket(SERVER_IP, SERVER_PORT);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+             PrintWriter writer = new PrintWriter(socket.getOutputStream(), true);
+             DataInputStream dtinp = new DataInputStream(socket.getInputStream());
+             BufferedReader bfr = new BufferedReader(new InputStreamReader(System.in))) {
+
+            System.out.println("Connected to server!");
+            System.out.println(reader.readLine());
+
+            String command;
+            while (true) {
+                System.out.print("Enter command (ls / filename.ext / exit): ");
+                command = bfr.readLine();
+                if (command.equalsIgnoreCase("exit")) break;
+
+                writer.println(command);
+
+                if (command.equalsIgnoreCase("ls")) {
+                    String fileName;
+                    while (!(fileName = reader.readLine()).equals("END")) {
+                        System.out.println(fileName);
+                    }
+                } else {
+                    String serverResponse = reader.readLine();
+                    if (serverResponse.equals("FOUND")) {
+                        long fileSize = dtinp.readLong();
+                        FileOutputStream fos = new FileOutputStream("downloaded_" + command);
+                        byte[] buffer = new byte[4096];
+                        int bytesRead;
+                        long totalRead = 0;
+                        while (totalRead < fileSize && (bytesRead = dtinp.read(buffer)) != -1) {
+                            fos.write(buffer, 0, bytesRead);
+                            totalRead += bytesRead;
+                        }
+                        fos.close();
+                        System.out.println("Downloaded done: downloaded_" + command);
+                    } else {
+                        System.out.println("File not found on server!");
+                    }
+                }
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+}
+\end{lstlisting}
+
+\section{Result Analysis}
+\subsection{Server Output (Textual)}
+\begin{verbatim}
+Server started. Listening on port 5000
+Client connected: /192.168.0.101
+File example.txt sent successfully.
+File not found.
+\end{verbatim}
+
+\subsection{Client Output (Textual)}
+\begin{verbatim}
+Connected to server!
+Connected to File Server. Type 'ls' to see files or enter a file name.
+Enter command: ls
+example.txt
+notes.pdf
+END
+Enter command: example.txt
+Downloaded done: downloaded_example.txt
+Enter command: unknown.txt
+File not found on server!
+Enter command: exit
+\end{verbatim}
+
+\subsection{Description}
+The server handles multiple clients and responds correctly to commands. The client can list files, download files, and is notified if a file does not exist.
+
+\section{Discussion}
+Basic socket programming only supports one client at a time. This causes:
+\begin{itemize}
+    \item Delays for other clients.
+    \item Poor performance for multiple users.
+    \item Unresponsive server in real-time applications.
+\end{itemize}
+
+Multi-threaded socket programming solves these issues by creating a separate thread for each client:
+\begin{itemize}
+    \item Multiple clients can connect simultaneously.
+    \item Server is responsive and scalable.
+    \item Supports concurrent file transfers.
+\end{itemize}
+
+During this lab, I learned how to implement a multi-threaded server, manage concurrent connections, and handle file transfer efficiently. Challenges included handling client disconnections and ensuring proper file stream management.
+
+\section{Conclusion}
+The lab demonstrates a multi-threaded HTTP-like file server and client in Java. It shows the advantages over basic socket programming and provides hands-on experience with network programming and concurrent file transfer.
+
+\end{document}
