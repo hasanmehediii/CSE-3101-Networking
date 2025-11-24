@@ -1,4 +1,4 @@
-# CSE-3101-Networking Lab
+# CSE-3101/3111- Computer Networking
 
 This repository contains the lab work for the CSE-3101 Networking course. Each directory corresponds to a specific lab, covering fundamental concepts of computer networking.
 
